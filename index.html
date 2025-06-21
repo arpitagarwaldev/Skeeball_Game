@@ -329,6 +329,12 @@
             }
         }
         
+        function getPowerFromPosition(position) {
+            // Convert position (0-1) to power where center = max power
+            // Use sine wave: power peaks at center (0.5), lowest at edges (0, 1)
+            return Math.sin(position * Math.PI) * 0.8 + 0.2; // Range: 0.2 to 1.0
+        }
+        
         function drawArrow(fromX, fromY, toX, toY, color, width) {
             const headLength = 20;
             const headWidth = 12;
@@ -379,12 +385,13 @@
             ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
             ctx.fillRect(barX - 5, barY - 5, barWidth + 10, barHeight + 10);
             
-            // Power bar gradient background
+            // Power bar gradient background - Red (low) on sides, Green (high) in center
             const gradient = ctx.createLinearGradient(barX, barY, barX + barWidth, barY);
-            gradient.addColorStop(0, '#FF4444');
-            gradient.addColorStop(0.3, '#FFAA44');
-            gradient.addColorStop(0.7, '#44FF44');
-            gradient.addColorStop(1, '#4444FF');
+            gradient.addColorStop(0, '#FF4444');    // Red - lowest power (left)
+            gradient.addColorStop(0.25, '#FFAA44'); // Orange
+            gradient.addColorStop(0.5, '#44FF44');  // Green - highest power (center)
+            gradient.addColorStop(0.75, '#FFAA44'); // Orange
+            gradient.addColorStop(1, '#FF4444');    // Red - lowest power (right)
             
             ctx.fillStyle = gradient;
             ctx.fillRect(barX, barY, barWidth, barHeight);
@@ -395,9 +402,13 @@
             ctx.textAlign = 'left';
             ctx.fillText('LOW', barX - 35, barY + 20);
             
-            ctx.fillStyle = '#4444FF';
+            ctx.fillStyle = '#44FF44';
+            ctx.textAlign = 'center';
+            ctx.fillText('MAX', barX + barWidth/2, barY - 10);
+            
+            ctx.fillStyle = '#FF4444';
             ctx.textAlign = 'right';
-            ctx.fillText('HIGH', barX + barWidth + 35, barY + 20);
+            ctx.fillText('LOW', barX + barWidth + 35, barY + 20);
             
             // Power indicator (moving slider) - only when charging
             if (charging) {
@@ -425,7 +436,8 @@
                 ctx.fillStyle = 'white';
                 ctx.font = 'bold 16px Arial';
                 ctx.textAlign = 'center';
-                const powerPercent = Math.round(currentPower * 100);
+                const actualPower = getPowerFromPosition(currentPower);
+                const powerPercent = Math.round(actualPower * 100);
                 ctx.fillText(`${powerPercent}%`, sliderX, barY + barHeight + 25);
                 
                 // Instructions
@@ -459,10 +471,11 @@
             // Power preview arrow when charging
             if (charging) {
                 const currentPower = autoPower.locked ? power : autoPower.value;
-                const powerEndX = ball.x + Math.cos(autoAim.angle) * currentPower * 200;
-                const powerEndY = ball.y + Math.sin(autoAim.angle) * currentPower * 200;
+                const actualPower = getPowerFromPosition(currentPower);
+                const powerEndX = ball.x + Math.cos(autoAim.angle) * actualPower * 200;
+                const powerEndY = ball.y + Math.sin(autoAim.angle) * actualPower * 200;
                 
-                const arrowColor = autoPower.locked ? 'rgba(0, 255, 100, 0.9)' : `rgba(255, 100, 100, ${0.6 + currentPower * 0.4})`;
+                const arrowColor = autoPower.locked ? 'rgba(0, 255, 100, 0.9)' : `rgba(255, 100, 100, ${0.6 + actualPower * 0.4})`;
                 drawArrow(ball.x, ball.y, powerEndX, powerEndY, arrowColor, 10);
             }
         }
@@ -532,9 +545,10 @@
         function launchBall() {
             if (ballsLeft > 0 && !ball.active && autoPower.locked) {
                 ball.active = true;
-                // Ball shoots in the current auto-aim direction with locked power
-                ball.vx = power * Math.cos(autoAim.angle) * 20;
-                ball.vy = power * Math.sin(autoAim.angle) * 20;
+                // Ball shoots with power based on position (center = max power)
+                const actualPower = getPowerFromPosition(power);
+                ball.vx = actualPower * Math.cos(autoAim.angle) * 20;
+                ball.vy = actualPower * Math.sin(autoAim.angle) * 20;
                 ballsLeft--;
                 charging = false;
                 autoPower.locked = false;
